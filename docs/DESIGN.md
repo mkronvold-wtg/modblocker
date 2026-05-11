@@ -27,7 +27,7 @@ The repository ships a privileged DaemonSet. On each node, an init container mou
 
 The DaemonSet writes only one managed file on the host:
 
-- `/etc/modprobe.d/disable-copyfail.conf`
+- `/etc/modprobe.d/modblocker.conf`
 
 That file contains:
 

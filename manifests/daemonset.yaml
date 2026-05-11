@@ -32,7 +32,7 @@ spec:
             - /bin/sh
             - -ceu
             - |
-              config_file=/host/etc/modprobe.d/disable-copyfail.conf
+              config_file=/host/etc/modprobe.d/modblocker.conf
               dirtyfrag_rules_added=false
               touch "$config_file"
 

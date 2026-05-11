@@ -29,7 +29,7 @@ The main container is `registry.k8s.io/pause`, which keeps the pod alive after t
 ## Data flow
 
 1. Kubernetes schedules the DaemonSet pod on a node.
-2. The init container mounts `/` from the host and updates `/host/etc/modprobe.d/disable-copyfail.conf`.
+2. The init container mounts `/` from the host and updates `/host/etc/modprobe.d/modblocker.conf`.
 3. The init container invokes the host `modprobe -r` for `algif_aead`, `esp4`, `esp6`, and `rxrpc` when those modules are loaded.
 4. If Dirty Frag rules were newly added or Dirty Frag modules were removed, the init container runs `sync` and writes `3` to `/proc/sys/vm/drop_caches`.
 5. The init container exits successfully.
