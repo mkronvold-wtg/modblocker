@@ -22,25 +22,41 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       initContainers:
-        - name: disable-algif-aead
+        - name: disable-vulnerable-modules
           image: busybox:1.36.1
           imagePullPolicy: IfNotPresent
+          env:
+            - name: DROP_CACHES_ON_REMEDIATION
+              value: "true"
           command:
             - /bin/sh
             - -ceu
             - |
               config_file=/host/etc/modprobe.d/disable-copyfail.conf
+              dirtyfrag_rules_added=false
               touch "$config_file"
 
               for line in \
                 "blacklist algif_aead" \
-                "install algif_aead /bin/false"
+                "install algif_aead /bin/false" \
+                "install esp4 /bin/false" \
+                "install esp6 /bin/false" \
+                "install rxrpc /bin/false"
               do
                 if ! grep -qxF "$line" "$config_file"; then
                   printf '%s\n' "$line" >> "$config_file"
+                  case "$line" in
+                    "blacklist algif_aead"|"install algif_aead /bin/false")
+                      ;;
+                    *)
+                      dirtyfrag_rules_added=true
+                      ;;
+                  esac
                 fi
               done
 
+              DIRTYFRAG_RULES_ADDED="$dirtyfrag_rules_added" \
+              DROP_CACHES_ON_REMEDIATION="${DROP_CACHES_ON_REMEDIATION:-true}" \
               chroot /host /bin/sh -ceu '
                 modprobe_bin=$(command -v modprobe)
 
@@ -49,8 +65,24 @@ spec:
                   exit 1
                 fi
 
-                if grep -q "^algif_aead " /proc/modules; then
-                  "$modprobe_bin" -r algif_aead
+                dirtyfrag_modules_unloaded=false
+
+                for module in algif_aead esp4 esp6 rxrpc; do
+                  if grep -q "^${module} " /proc/modules; then
+                    echo "unloading ${module}" >&2
+                    "$modprobe_bin" -r "$module"
+
+                    case "$module" in
+                      esp4|esp6|rxrpc)
+                        dirtyfrag_modules_unloaded=true
+                        ;;
+                    esac
+                  fi
+                done
+
+                if [ "${DROP_CACHES_ON_REMEDIATION}" = "true" ] && { [ "${DIRTYFRAG_RULES_ADDED}" = "true" ] || [ "${dirtyfrag_modules_unloaded}" = "true" ]; }; then
+                  sync
+                  echo 3 > /proc/sys/vm/drop_caches
                 fi
               '
           securityContext:

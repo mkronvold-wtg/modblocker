@@ -1,1 +1,1 @@
-DaemonSet manifests that disable the bad `algif_aead` kernel module on immutable Kubernetes worker nodes to mitigate CopyFail.
+DaemonSet manifests that disable the kernel modules tied to CopyFail and Dirty Frag on immutable Kubernetes worker nodes.

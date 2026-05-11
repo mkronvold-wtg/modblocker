@@ -2,12 +2,13 @@
 
 ## Problem
 
-VKS worker nodes are rebuilt from immutable images, so manual host edits do not persist through node replacement, upgrades, or remediation. A CopyFail mitigation that depends on disabling `algif_aead` therefore has to be applied automatically on every node.
+VKS worker nodes are rebuilt from immutable images, so manual host edits do not persist through node replacement, upgrades, or remediation. The same node-immunity constraint applies to both the publicly known CopyFail mitigation (`algif_aead`) and the Dirty Frag module mitigations (`esp4`, `esp6`, and `rxrpc`), so the hardening has to be applied automatically on every node.
 
 ## Goals
 
-- Disable the `algif_aead` kernel module on each Linux worker node.
+- Disable the `algif_aead`, `esp4`, `esp6`, and `rxrpc` kernel modules on each Linux worker node.
 - Persist the disablement across node churn by reapplying it through Kubernetes.
+- Run the Dirty Frag cache-drop cleanup when the DaemonSet first applies or unloads the Dirty Frag modules.
 - Keep the implementation small, auditable, and easy to apply.
 
 ## Non-goals
@@ -18,7 +19,7 @@ VKS worker nodes are rebuilt from immutable images, so manual host edits do not 
 
 ## Chosen approach
 
-The repository ships a privileged DaemonSet. On each node, an init container mounts the host filesystem, writes an idempotent modprobe configuration file into `/etc/modprobe.d`, and attempts to unload `algif_aead` if the module is currently present. A pause container keeps the pod scheduled so the DaemonSet remains healthy and gets recreated automatically on new nodes.
+The repository ships a privileged DaemonSet. On each node, an init container mounts the host filesystem, writes an idempotent modprobe configuration file into `/etc/modprobe.d`, unloads the CopyFail and Dirty Frag modules if they are currently present, and drops the page cache during Dirty Frag remediation. A pause container keeps the pod scheduled so the DaemonSet remains healthy and gets recreated automatically on new nodes.
 
 ## Key design decisions
 
@@ -32,6 +33,9 @@ That file contains:
 
 - `blacklist algif_aead`
 - `install algif_aead /bin/false`
+- `install esp4 /bin/false`
+- `install esp6 /bin/false`
+- `install rxrpc /bin/false`
 
 This combination blocks normal autoloading and makes explicit loads fail.
 
@@ -42,6 +46,14 @@ The init container checks whether each required line already exists before appen
 ### Module unload uses host tooling
 
 The container uses `chroot /host` to execute the host shell and host `modprobe`, which avoids depending on kernel-module tooling inside the container image.
+
+### Dirty Frag cleanup is automatic on remediation
+
+Dirty Frag guidance recommends dropping the page cache after removing the affected modules. The DaemonSet follows that guidance when it first adds the Dirty Frag rules or unloads `esp4`, `esp6`, or `rxrpc`.
+
+### Compatibility is explicit
+
+Disabling `esp4` and `esp6` prevents kernel ESP/IPsec support from loading on the node, and disabling `rxrpc` blocks RxRPC consumers such as AFS-related workloads. Those impacts are intentional tradeoffs of the mitigation.
 
 ### Scope stays namespaced
 
