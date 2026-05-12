@@ -7,6 +7,7 @@
 - `manifests/kustomization.yaml`: the entry point for applying the manifest set.
 - `docs/DESIGN.md`: design rationale and constraints.
 - `docs/ARCHITECTURE.md`: component overview and operating model.
+- `docs/SECURE.md`: container-by-container hardening and risk analysis.
 
 ## Runtime components
 
