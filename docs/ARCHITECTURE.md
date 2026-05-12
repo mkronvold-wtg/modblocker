@@ -31,6 +31,12 @@ The second container is a lightweight BusyBox monitor. It mounts the host root r
 - The readiness probe checks for the shared healthy flag, so a node that drifts out of compliance becomes visibly unready.
 - The liveness probe checks that the heartbeat file is still fresh, so a stalled monitor process gets restarted without conflating loop failure with node non-compliance.
 
+### Security posture
+
+- The pod disables automatic service account token mounting and Kubernetes service link injection.
+- The monitor sidecar runs as an explicit non-root user, drops all Linux capabilities, disallows privilege escalation, uses a read-only root filesystem, and uses the runtime-default seccomp profile.
+- The init container remains privileged and unconfined only because it must write to the host filesystem, unload host kernel modules, and run the cache-drop remediation step.
+
 ## Data flow
 
 1. Kubernetes schedules the DaemonSet pod on a node.
@@ -48,4 +54,5 @@ The second container is a lightweight BusyBox monitor. It mounts the host root r
 - If `esp4`, `esp6`, or `rxrpc` are actively in use and cannot be removed, the pod fails so the node remains visibly non-compliant.
 - If the managed config is removed or one of the target modules gets reloaded later, the monitor sidecar makes the pod unready.
 - If the monitor loop wedges or exits unexpectedly, the liveness probe fails and Kubernetes restarts that container.
+- If a cluster policy forbids privileged init containers, hostPath mounts, or unconfined seccomp, the DaemonSet will be rejected instead of silently weakening the mitigation.
 - If a new node joins the cluster, the DaemonSet repeats the process on that node automatically.

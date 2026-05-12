@@ -12,6 +12,7 @@ This repository manages Kubernetes-hosted mitigations for CopyFail and Dirty Fra
 
 - Keep deployable Kubernetes manifests under `manifests/`.
 - Use a privileged DaemonSet to write a host modprobe configuration file, unload the target modules, apply the Dirty Frag page-cache cleanup step during remediation, and continuously report compliance health from the steady-state container.
+- Keep the steady-state container explicitly hardened with a non-root, no-escalation, dropped-capability profile, and document the privileged init container as an exception required for host remediation.
 - Make host changes idempotent so repeated pod starts do not duplicate configuration.
 - Keep documentation under `docs/`.
 - Minimize scope to the module-disable mitigation and the documentation needed to operate it.

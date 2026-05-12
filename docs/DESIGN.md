@@ -55,6 +55,12 @@ Dirty Frag guidance recommends dropping the page cache after removing the affect
 
 The steady-state container is not just a placeholder. It re-checks the managed host config and `/proc/modules` on a loop, writes a health flag to a shared status volume, and lets readiness fail when the node drifts out of compliance. A separate heartbeat file keeps liveness focused on whether the monitor itself is still running.
 
+### Security hardening is explicit
+
+The pod now disables service account token projection and service links because it does not call the Kubernetes API. The monitor sidecar uses an explicit non-privileged profile: `runAsNonRoot`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `readOnlyRootFilesystem: true`, and `seccompProfile: RuntimeDefault`.
+
+The init container is an intentional exception. It stays privileged, runs as root, and uses `seccompProfile: Unconfined` because unloading host kernel modules and dropping caches requires access that a standard hardened profile would block.
+
 ### Compatibility is explicit
 
 Disabling `esp4` and `esp6` prevents kernel ESP/IPsec support from loading on the node, and disabling `rxrpc` blocks RxRPC consumers such as AFS-related workloads. Those impacts are intentional tradeoffs of the mitigation.

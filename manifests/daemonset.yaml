@@ -18,7 +18,10 @@ spec:
         app.kubernetes.io/name: modblocker
         app.kubernetes.io/component: node-mitigation
     spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
       hostPID: true
+      terminationGracePeriodSeconds: 10
       nodeSelector:
         kubernetes.io/os: linux
       initContainers:
@@ -86,13 +89,22 @@ spec:
                 fi
               '
           securityContext:
+            allowPrivilegeEscalation: true
             privileged: true
+            readOnlyRootFilesystem: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: Unconfined
           resources:
             requests:
               cpu: 10m
+              ephemeral-storage: 16Mi
               memory: 16Mi
             limits:
               cpu: 50m
+              ephemeral-storage: 64Mi
               memory: 32Mi
           volumeMounts:
             - name: host-root
@@ -176,12 +188,26 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               cpu: 5m
+              ephemeral-storage: 16Mi
               memory: 16Mi
             limits:
               cpu: 25m
+              ephemeral-storage: 64Mi
               memory: 32Mi
           volumeMounts:
             - name: host-root
