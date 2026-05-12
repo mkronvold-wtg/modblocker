@@ -98,19 +98,102 @@ spec:
             - name: host-root
               mountPath: /host
       containers:
-        - name: pause
-          image: registry.k8s.io/pause:3.10
+        - name: monitor-state
+          image: busybox:1.36.1
           imagePullPolicy: IfNotPresent
+          env:
+            - name: MONITOR_INTERVAL_SECONDS
+              value: "15"
+          command:
+            - /bin/sh
+            - -ceu
+            - |
+              config_file=/host/etc/modprobe.d/modblocker.conf
+              healthy_file=/status/healthy
+              heartbeat_file=/status/heartbeat
+              reason_file=/status/reason
+
+              while true; do
+                failures=0
+                : > "${reason_file}.tmp"
+
+                if [ ! -f "$config_file" ]; then
+                  echo "missing host config: $config_file" >> "${reason_file}.tmp"
+                  failures=1
+                else
+                  for line in \
+                    "blacklist algif_aead" \
+                    "install algif_aead /bin/false" \
+                    "install esp4 /bin/false" \
+                    "install esp6 /bin/false" \
+                    "install rxrpc /bin/false"
+                  do
+                    if ! grep -qxF "$line" "$config_file"; then
+                      echo "missing config rule: $line" >> "${reason_file}.tmp"
+                      failures=1
+                    fi
+                  done
+                fi
+
+                for module in algif_aead esp4 esp6 rxrpc; do
+                  if grep -q "^${module} " /proc/modules; then
+                    echo "module still loaded: ${module}" >> "${reason_file}.tmp"
+                    failures=1
+                  fi
+                done
+
+                printf '%s\n' "$(date +%s)" > "${heartbeat_file}.tmp"
+                mv "${heartbeat_file}.tmp" "$heartbeat_file"
+
+                if [ "$failures" -eq 0 ]; then
+                  printf 'healthy\n' > "${healthy_file}.tmp"
+                  mv "${healthy_file}.tmp" "$healthy_file"
+                  printf 'all required config rules are present and target modules are absent\n' > "${reason_file}.tmp"
+                  mv "${reason_file}.tmp" "$reason_file"
+                else
+                  rm -f "$healthy_file"
+                  mv "${reason_file}.tmp" "$reason_file"
+                fi
+
+                sleep "${MONITOR_INTERVAL_SECONDS:-15}"
+              done
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ceu
+                - test -f /status/healthy
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 1
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ceu
+                - test -f /status/heartbeat && now=$(date +%s) && last=$(cat /status/heartbeat) && [ $((now - last)) -lt 45 ]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 2
           resources:
             requests:
-              cpu: 1m
-              memory: 8Mi
-            limits:
-              cpu: 10m
+              cpu: 5m
               memory: 16Mi
+            limits:
+              cpu: 25m
+              memory: 32Mi
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+              readOnly: true
+            - name: monitor-status
+              mountPath: /status
       restartPolicy: Always
       volumes:
         - name: host-root
           hostPath:
             path: /
             type: Directory
+        - name: monitor-status
+          emptyDir: {}

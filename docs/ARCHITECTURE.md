@@ -22,9 +22,14 @@ The init container runs as privileged and mounts the host root filesystem at `/h
 2. Use `chroot /host` to invoke the host shell and unload `algif_aead`, `esp4`, `esp6`, and `rxrpc` when they are active.
 3. Drop the host page cache after Dirty Frag remediation is newly applied.
 
-### Pause container
+### Monitor sidecar
 
-The main container is `registry.k8s.io/pause`, which keeps the pod alive after the one-time host mutation succeeds. This keeps the DaemonSet converged without re-running the mutation loop continuously.
+The second container is a lightweight BusyBox monitor. It mounts the host root read-only and an internal `emptyDir` status volume. On a loop, it validates the required lines in `/host/etc/modprobe.d/modblocker.conf`, confirms the target modules are absent from `/proc/modules`, writes a compliance flag when everything is still correct, and records a heartbeat timestamp for liveness.
+
+### Health probes
+
+- The readiness probe checks for the shared healthy flag, so a node that drifts out of compliance becomes visibly unready.
+- The liveness probe checks that the heartbeat file is still fresh, so a stalled monitor process gets restarted without conflating loop failure with node non-compliance.
 
 ## Data flow
 
@@ -33,11 +38,14 @@ The main container is `registry.k8s.io/pause`, which keeps the pod alive after t
 3. The init container invokes the host `modprobe -r` for `algif_aead`, `esp4`, `esp6`, and `rxrpc` when those modules are loaded.
 4. If Dirty Frag rules were newly added or Dirty Frag modules were removed, the init container runs `sync` and writes `3` to `/proc/sys/vm/drop_caches`.
 5. The init container exits successfully.
-6. The pause container stays running until the pod is rescheduled or replaced.
+6. The monitor sidecar starts its validation loop, writes readiness state into `/status/healthy`, and updates `/status/heartbeat`.
+7. Kubernetes uses those files for ongoing readiness and liveness checks.
 
 ## Failure model
 
 - If the host shell or module tools are missing, the init container fails loudly and Kubernetes retries the pod.
 - If one of the targeted modules is already absent, that unload step becomes a no-op.
 - If `esp4`, `esp6`, or `rxrpc` are actively in use and cannot be removed, the pod fails so the node remains visibly non-compliant.
+- If the managed config is removed or one of the target modules gets reloaded later, the monitor sidecar makes the pod unready.
+- If the monitor loop wedges or exits unexpectedly, the liveness probe fails and Kubernetes restarts that container.
 - If a new node joins the cluster, the DaemonSet repeats the process on that node automatically.

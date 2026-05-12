@@ -19,7 +19,7 @@ VKS worker nodes are rebuilt from immutable images, so manual host edits do not 
 
 ## Chosen approach
 
-The repository ships a privileged DaemonSet. On each node, an init container mounts the host filesystem, writes an idempotent modprobe configuration file into `/etc/modprobe.d`, unloads the CopyFail and Dirty Frag modules if they are currently present, and drops the page cache during Dirty Frag remediation. A pause container keeps the pod scheduled so the DaemonSet remains healthy and gets recreated automatically on new nodes.
+The repository ships a privileged DaemonSet. On each node, an init container mounts the host filesystem, writes an idempotent modprobe configuration file into `/etc/modprobe.d`, unloads the CopyFail and Dirty Frag modules if they are currently present, and drops the page cache during Dirty Frag remediation. A second container then continuously monitors the host config and live module state so Kubernetes health reflects whether the mitigation is still in effect.
 
 ## Key design decisions
 
@@ -50,6 +50,10 @@ The container uses `chroot /host` to execute the host shell and host `modprobe`,
 ### Dirty Frag cleanup is automatic on remediation
 
 Dirty Frag guidance recommends dropping the page cache after removing the affected modules. The DaemonSet follows that guidance when it first adds the Dirty Frag rules or unloads `esp4`, `esp6`, or `rxrpc`.
+
+### Ongoing health is explicit
+
+The steady-state container is not just a placeholder. It re-checks the managed host config and `/proc/modules` on a loop, writes a health flag to a shared status volume, and lets readiness fail when the node drifts out of compliance. A separate heartbeat file keeps liveness focused on whether the monitor itself is still running.
 
 ### Compatibility is explicit
 
