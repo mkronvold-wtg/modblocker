@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: modblocker
+  namespace: modblocker
+spec:
+  template:
+    spec:
+      containers:
+        - $patch: delete
+          name: monitor-state
+        - name: hold-pod
+          image: registry.k8s.io/pause:3.10
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 1m
+              ephemeral-storage: 16Mi
+              memory: 8Mi
+            limits:
+              cpu: 10m
+              ephemeral-storage: 64Mi
+              memory: 16Mi
+      volumes:
+        - $patch: delete
+          name: monitor-status

@@ -10,3 +10,4 @@
 - Add explicit hardening for the steady-state monitor container and pod defaults, while documenting the privileged init container as a narrow required exception.
 - Change the default deployment namespace from `kube-system` to `modblocker`.
 - Add `docs/SECURE.md` to document container hardening and residual risk areas.
+- Add a `no-monitor` overlay so the compliance sidecar is optional when operators prefer lower steady-state host exposure over ongoing drift visibility.

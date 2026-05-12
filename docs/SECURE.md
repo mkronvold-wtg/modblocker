@@ -90,10 +90,39 @@ This container continuously checks that:
 - **Compliance-only role:** it can detect drift and fail readiness, but it cannot repair drift by itself.
 - **Image trust:** it still depends on the integrity of the BusyBox image and the monitoring script.
 
+## Optional no-monitor variant
+
+The repository also provides `manifests/overlays/no-monitor/`.
+
+### What changes
+
+- removes the `monitor-state` sidecar
+- removes the shared status `emptyDir`
+- replaces the sidecar with a minimal hardened `pause` container
+- keeps the privileged init container unchanged
+
+### What still works
+
+- the init container still writes `/host/etc/modprobe.d/modblocker.conf`
+- the init container still unloads the target modules
+- the init container still performs the Dirty Frag cache-drop step when needed
+- the DaemonSet still schedules one pod per node
+
+### What you lose
+
+- no ongoing validation of the host config after startup
+- no readiness signal for module reload or config drift
+- no liveness signal tied to compliance monitoring
+
+### Security tradeoff
+
+The `no-monitor` overlay reduces steady-state host exposure because the long-running container no longer mounts `/host` or inspects host state. The privileged init container remains the dominant risk either way, so this is a meaningful reduction in observation surface, not a removal of the main trust boundary.
+
 ## Shared operational risks
 
 - **Node compatibility:** disabling `esp4` and `esp6` affects kernel ESP/IPsec support; disabling `rxrpc` affects RxRPC consumers.
 - **Drift after startup:** the monitor makes the pod unready if drift happens later, but it does not automatically re-run the privileged remediation.
+- **Optional observability tradeoff:** the `no-monitor` overlay reduces steady-state exposure but removes built-in post-start drift visibility.
 - **Host OS assumptions:** the design assumes the VKS node image allows the required host mount and writes to the relevant host paths.
 
 ## Practical interpretation

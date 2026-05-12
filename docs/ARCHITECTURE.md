@@ -3,8 +3,9 @@
 ## Repository layout
 
 - `.github/copilot-instructions.md`: normalized project guidance derived from the original input.
-- `manifests/daemonset.yaml`: the node-mitigation workload.
-- `manifests/kustomization.yaml`: the entry point for applying the manifest set.
+- `manifests/base/daemonset.yaml`: the default node-mitigation workload.
+- `manifests/kustomization.yaml`: the default entry point, which deploys the monitored variant.
+- `manifests/overlays/no-monitor/`: an alternate deployment that removes the monitoring sidecar and keeps only a minimal hardened steady-state container.
 - `docs/DESIGN.md`: design rationale and constraints.
 - `docs/ARCHITECTURE.md`: component overview and operating model.
 - `docs/SECURE.md`: container-by-container hardening and risk analysis.
@@ -27,6 +28,10 @@ The init container runs as privileged and mounts the host root filesystem at `/h
 
 The second container is a lightweight BusyBox monitor. It mounts the host root read-only and an internal `emptyDir` status volume. On a loop, it validates the required lines in `/host/etc/modprobe.d/modblocker.conf`, confirms the target modules are absent from `/proc/modules`, writes a compliance flag when everything is still correct, and records a heartbeat timestamp for liveness.
 
+### Optional no-monitor mode
+
+If you do not want the steady-state host visibility from the monitor sidecar, use `manifests/overlays/no-monitor/` instead of the default kustomization. That overlay removes `monitor-state`, deletes the shared status volume, and replaces the sidecar with a minimal hardened `pause` container so the DaemonSet pod remains valid and scheduled after the init container finishes.
+
 ### Health probes
 
 - The readiness probe checks for the shared healthy flag, so a node that drifts out of compliance becomes visibly unready.
@@ -48,6 +53,8 @@ The second container is a lightweight BusyBox monitor. It mounts the host root r
 6. The monitor sidecar starts its validation loop, writes readiness state into `/status/healthy`, and updates `/status/heartbeat`.
 7. Kubernetes uses those files for ongoing readiness and liveness checks.
 
+When the `no-monitor` overlay is used, steps 6 and 7 are replaced by a passive holder container. The host remediation still happens, but there is no ongoing compliance signal after startup.
+
 ## Failure model
 
 - If the host shell or module tools are missing, the init container fails loudly and Kubernetes retries the pod.
@@ -55,5 +62,6 @@ The second container is a lightweight BusyBox monitor. It mounts the host root r
 - If `esp4`, `esp6`, or `rxrpc` are actively in use and cannot be removed, the pod fails so the node remains visibly non-compliant.
 - If the managed config is removed or one of the target modules gets reloaded later, the monitor sidecar makes the pod unready.
 - If the monitor loop wedges or exits unexpectedly, the liveness probe fails and Kubernetes restarts that container.
+- If the `no-monitor` overlay is used, later drift is not surfaced through pod health; operators must verify compliance out of band.
 - If a cluster policy forbids privileged init containers, hostPath mounts, or unconfined seccomp, the DaemonSet will be rejected instead of silently weakening the mitigation.
 - If a new node joins the cluster, the DaemonSet repeats the process on that node automatically.

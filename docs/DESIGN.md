@@ -55,6 +55,8 @@ Dirty Frag guidance recommends dropping the page cache after removing the affect
 
 The steady-state container is not just a placeholder. It re-checks the managed host config and `/proc/modules` on a loop, writes a health flag to a shared status volume, and lets readiness fail when the node drifts out of compliance. A separate heartbeat file keeps liveness focused on whether the monitor itself is still running.
 
+The monitoring behavior is optional rather than foundational to the host remediation itself. The actual mitigation happens in the init container. The repository now includes a `manifests/overlays/no-monitor/` variant that removes the monitoring sidecar and keeps only a minimal hardened holder container. That variant lowers steady-state visibility into the host but also gives up ongoing readiness-based drift detection.
+
 ### Security hardening is explicit
 
 The pod now disables service account token projection and service links because it does not call the Kubernetes API. The monitor sidecar uses an explicit non-privileged profile: `runAsNonRoot`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `readOnlyRootFilesystem: true`, and `seccompProfile: RuntimeDefault`.
