@@ -12,7 +12,7 @@
 
 ### DaemonSet
 
-The DaemonSet schedules one pod per schedulable Linux node in `kube-system`.
+The DaemonSet schedules one pod per schedulable Linux node in the `modblocker` namespace.
 
 ### Init container
 

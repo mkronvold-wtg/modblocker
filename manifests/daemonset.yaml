@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: modblocker
-  namespace: kube-system
+  namespace: modblocker
   labels:
     app.kubernetes.io/name: modblocker
     app.kubernetes.io/component: node-mitigation

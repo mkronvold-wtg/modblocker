@@ -8,3 +8,4 @@
 - Rename the managed host modprobe file to `/etc/modprobe.d/modblocker.conf` so the on-node state matches the broader mitigation scope.
 - Replace the passive second container with a monitoring sidecar that continuously validates the host config and module state, then exposes readiness and liveness health signals.
 - Add explicit hardening for the steady-state monitor container and pod defaults, while documenting the privileged init container as a narrow required exception.
+- Change the default deployment namespace from `kube-system` to `modblocker`.

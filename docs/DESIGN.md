@@ -67,4 +67,4 @@ Disabling `esp4` and `esp6` prevents kernel ESP/IPsec support from loading on th
 
 ### Scope stays namespaced
 
-The implementation uses a namespaced DaemonSet in `kube-system` and does not require cluster-wide RBAC because it does not call the Kubernetes API.
+The implementation uses a namespaced DaemonSet in `modblocker` and does not require cluster-wide RBAC because it does not call the Kubernetes API.
